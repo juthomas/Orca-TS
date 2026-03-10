@@ -1,48 +1,40 @@
 {
-  "name": "Orca",
+  "name": "orca-ts",
   "version": "0.1.0",
+  "description": "Orca Ts — TypeScript/Electron fork of Orca livecoding environment",
+  "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">= 10"
+    "node": ">= 18"
   },
-  "main": "main.js",
+  "main": "dist/main.js",
   "scripts": {
-    "start": "electron . --disable-gpu",
+    "build": "tsc && tsc -p tsconfig.renderer.json && pnpm run copy-assets",
+    "copy-assets": "mkdir -p dist/sources/links && cp sources/index.html dist/sources/ && cp -r sources/links/* dist/sources/links/",
+    "start": "pnpm run build && electron . --disable-gpu",
+    "dev": "pnpm run build && electron . --disable-gpu",
     "time": "node time.js",
     "docs": "node ../docs.js",
     "fix": "standard --fix",
-    "update": "npm update --save",
-    "clean": "rm -r ~/Documents/Orca-darwin-x64/ ; rm -r ~/Documents/Orca-linux-x64/ ; rm -r ~/Documents/Orca-win32-x64/ ; echo 'cleaned build location'",
-    "build_osx": "electron-packager . Orca --platform=darwin --arch=x64 --out ~/Documents/ --overwrite --icon=icon.icns ; echo 'Built for OSX'",
-    "build_linux": "electron-packager . Orca --platform=linux  --arch=x64 --out ~/Documents/ --overwrite --icon=icon.ico ; echo 'Built for LINUX'",
-    "build_win": "electron-packager . Orca --platform=win32  --arch=x64 --out ~/Documents/ --overwrite --icon=icon.ico ; echo 'Built for WIN'",
-    "add_manual": "cp ../resources/MANUAL.txt ~/Documents/Orca-darwin-x64/MANUAL.txt ; cp ../resources/MANUAL.txt ~/Documents/Orca-linux-x64/MANUAL.txt ; cp ../resources/MANUAL.txt ~/Documents/Orca-win32-x64/MANUAL.txt",
-    "build": "npm run clean ; npm run build_osx ; npm run build_linux ; npm run build_win ; npm run add_manual",
-    "push_osx": "~/Applications/butler push ~/Documents/Orca-darwin-x64/ hundredrabbits/orca:osx-64",
-    "push_linux": "~/Applications/butler push ~/Documents/Orca-linux-x64/ hundredrabbits/orca:linux-64",
-    "push_win": "~/Applications/butler push ~/Documents/Orca-win32-x64/ hundredrabbits/orca:windows-64",
-    "status": "~/Applications/butler status hundredrabbits/orca",
-    "push": "npm run build ; npm run push_osx ; npm run push_linux ; npm run push_win ; npm run clean ; npm run status"
+    "update": "pnpm update",
+    "clean": "rm -rf dist && rm -r ~/Documents/Orca-Ts-darwin-x64/ 2>/dev/null; rm -r ~/Documents/Orca-Ts-linux-x64/ 2>/dev/null; rm -r ~/Documents/Orca-Ts-win32-x64/ 2>/dev/null; echo 'cleaned build location'",
+    "build_osx": "pnpm run build && electron-packager . \"Orca Ts\" --platform=darwin --arch=x64 --out ~/Documents/ --overwrite --icon=icon.icns ; echo 'Built for OSX'",
+    "build_linux": "pnpm run build && electron-packager . \"Orca Ts\" --platform=linux --arch=x64 --out ~/Documents/ --overwrite --icon=icon.ico ; echo 'Built for LINUX'",
+    "build_win": "pnpm run build && electron-packager . \"Orca Ts\" --platform=win32 --arch=x64 --out ~/Documents/ --overwrite --icon=icon.ico ; echo 'Built for WIN'",
+    "add_manual": "cp ../resources/MANUAL.txt ~/Documents/Orca-Ts-darwin-x64/MANUAL.txt 2>/dev/null; cp ../resources/MANUAL.txt ~/Documents/Orca-Ts-linux-x64/MANUAL.txt 2>/dev/null; cp ../resources/MANUAL.txt ~/Documents/Orca-Ts-win32-x64/MANUAL.txt 2>/dev/null; true",
+    "build:pack": "pnpm run clean ; pnpm run build_osx ; pnpm run build_linux ; pnpm run build_win ; pnpm run add_manual",
+    "push_osx": "~/Applications/butler push ~/Documents/Orca-Ts-darwin-x64/ <your-itch-user>/orca-ts:osx-64",
+    "push_linux": "~/Applications/butler push ~/Documents/Orca-Ts-linux-x64/ <your-itch-user>/orca-ts:linux-64",
+    "push_win": "~/Applications/butler push ~/Documents/Orca-Ts-win32-x64/ <your-itch-user>/orca-ts:windows-64",
+    "status": "~/Applications/butler status <your-itch-user>/orca-ts",
+    "push": "pnpm run build:pack ; pnpm run push_osx ; pnpm run push_linux ; pnpm run push_win ; pnpm run clean ; pnpm run status"
   },
   "devDependencies": {
-    "electron": "^8.5.3",
-    "electron-packager": "^15.1.0"
+    "@types/node": "^22.10.0",
+    "electron": "^35.7.5",
+    "electron-packager": "^17.1.2",
+    "typescript": "^5.7.2"
   },
   "dependencies": {
-    "node-osc": "^4.1.9"
-  },
-  "standard": {
-    "globals": [
-      "terminal",
-      "localStorage",
-      "DOMParser",
-      "onMessage",
-      "postMessage",
-      "FileReader",
-      "performance",
-      "Worker"
-    ],
-    "ignore": [
-      "/node_modules/*"
-    ]
+    "node-osc": "^11.2.2"
   }
 }

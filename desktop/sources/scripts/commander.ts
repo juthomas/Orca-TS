@@ -1,0 +1,216 @@
+interface Param {
+  str: string;
+  length: number;
+  chars: string[];
+  int: number | null;
+  parts: string[];
+  ints: number[];
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  _str: string;
+  _x: number;
+  _y: number;
+}
+
+function Commander(_client: IClient) {
+  this.isActive = false;
+  this.query = '';
+  this.history = [] as string[];
+  this.historyIndex = 0;
+
+  this.passives = {
+    find: (p: Param) => client.cursor.find(p.str),
+    select: (p: Param) => client.cursor.select(p.x, p.y, p.w || 0, p.h || 0),
+    inject: (p: Param) => {
+      client.cursor.select(p._x, p._y);
+      if (client.source.cache[p._str + '.orca']) {
+        const block = client.source.cache[p._str + '.orca'];
+        const rect = client.orca.toRect(block);
+        client.cursor.scaleTo(rect.x, rect.y);
+      }
+    },
+  };
+
+  this.actives = {
+    osc: (p: Param) => client.io.osc.select(p.int!),
+    udp: (p: Param) => {
+      client.io.udp.selectOutput(p.x);
+      if (p.y !== null) client.io.udp.selectInput(p.y);
+    },
+    midi: (p: Param) => {
+      client.io.midi.selectOutput(p.x);
+      if (p.y !== null) client.io.midi.selectInput(p.y);
+    },
+    ip: (p: Param) => client.io.setIp(p.str),
+    cc: (p: Param) => client.io.cc.setOffset(p.int!),
+    pg: (p: Param) => {
+      (client.io.cc as IMidiCC).stack.push({
+        channel: clamp(p.ints[0], 0, 15),
+        bank: p.ints[1],
+        sub: p.ints[2],
+        pgm: clamp(p.ints[3], 0, 127),
+        type: 'pg',
+      });
+      client.io.cc.run();
+    },
+    copy: () => client.cursor.copy(),
+    paste: () => client.cursor.paste(true),
+    erase: () => client.cursor.erase(),
+    play: () => client.clock.play(),
+    stop: () => client.clock.stop(),
+    run: () => client.run(),
+    apm: (p: Param) => client.clock.setSpeed(null, p.int!),
+    bpm: (p: Param) => client.clock.setSpeed(p.int!, p.int!, true),
+    frame: (p: Param) => client.clock.setFrame(p.int!),
+    rewind: (p: Param) => client.clock.setFrame(client.orca.f - p.int!),
+    skip: (p: Param) => client.clock.setFrame(client.orca.f + p.int!),
+    time: (p: Param, origin?: { x: number; y: number }) => {
+      const formatted = new Date(
+        250 * (client.orca.f * (60 / client.clock.speed.value))
+      )
+        .toISOString()
+        .substr(14, 5)
+        .replace(/:/g, '');
+      client.orca.writeBlock(
+        origin ? origin.x : client.cursor.x,
+        origin ? origin.y : client.cursor.y,
+        `${formatted}`
+      );
+    },
+    color: (p: Param) => {
+      if (p.parts[0]) client.theme.set('b_low', p.parts[0]);
+      if (p.parts[1]) client.theme.set('b_med', p.parts[1]);
+      if (p.parts[2]) client.theme.set('b_high', p.parts[2]);
+    },
+    find: (p: Param) => client.cursor.find(p.str),
+    select: (p: Param) => client.cursor.select(p.x, p.y, p.w || 0, p.h || 0),
+    inject: (p: Param, origin?: { x: number; y: number }) => {
+      const block = client.source.cache[p._str + '.orca'];
+      if (!block) {
+        console.warn('Commander', 'Unknown block: ' + p._str);
+        return;
+      }
+      client.orca.writeBlock(
+        origin ? origin.x : client.cursor.x,
+        origin ? origin.y : client.cursor.y,
+        block
+      );
+      client.cursor.scaleTo(0, 0);
+    },
+    write: (p: Param) => {
+      client.orca.writeBlock(p._x || client.cursor.x, p._y || client.cursor.y, p._str);
+    },
+  };
+
+  for (const id in this.actives as Record<string, (p: Param, origin?: { x: number; y: number }) => void>) {
+    (this.actives as Record<string, (p: Param, origin?: { x: number; y: number }) => void>)[id.substr(0, 2)] = (
+      this.actives as Record<string, (p: Param, origin?: { x: number; y: number }) => void>
+    )[id];
+  }
+
+  function Param(this: Param, val: string) {
+    this.str = `${val}`;
+    this.length = this.str.length;
+    this.chars = this.str.split('');
+    this.int = !isNaN(Number(val)) ? parseInt(val) : null;
+    this.parts = val.split(';');
+    this.ints = this.parts.map((v) => parseInt(v));
+    this.x = parseInt(this.parts[0]);
+    this.y = parseInt(this.parts[1]);
+    this.w = parseInt(this.parts[2]);
+    this.h = parseInt(this.parts[3]);
+    this._str = this.parts[0];
+    this._x = parseInt(this.parts[1]);
+    this._y = parseInt(this.parts[2]);
+  }
+
+  this.start = (q: string = '') => {
+    this.isActive = true;
+    this.query = q;
+    client.cursor.ins = false;
+    client.update();
+  };
+
+  this.stop = () => {
+    this.isActive = false;
+    this.query = '';
+    this.historyIndex = this.history.length;
+    client.update();
+  };
+
+  this.erase = function () {
+    this.query = this.query.slice(0, -1);
+    this.preview();
+  };
+
+  this.write = (key: string) => {
+    if (key === 'Backspace') {
+      this.erase();
+      return;
+    }
+    if (key === 'Enter') {
+      this.run();
+      return;
+    }
+    if (key === 'Escape') {
+      this.stop();
+      return;
+    }
+    if (key.length > 1) return;
+    this.query += key;
+    this.preview();
+  };
+
+  this.run = function () {
+    const tool = this.isActive ? 'commander' : 'cursor';
+    (client as unknown as Record<string, { trigger: () => void }>)[tool].trigger();
+    client.update();
+  };
+
+  this.trigger = function (
+    msg: string = this.query,
+    origin: { x: number; y: number } | null = null,
+    stopping: boolean = true
+  ) {
+    const cmd = `${msg}`.split(':')[0].trim().replace(/\W/g, '').toLowerCase();
+    const val = `${msg}`.substr(cmd.length + 1);
+    const fn = (this.actives as Record<string, (p: Param, origin?: { x: number; y: number }) => void>)[cmd];
+    if (!fn) {
+      console.warn('Commander', `Unknown message: ${msg}`);
+      this.stop();
+      return;
+    }
+    fn(new (Param as any)(val), origin ?? undefined);
+    this.history.push(msg);
+    this.historyIndex = this.history.length;
+    if (stopping) this.stop();
+  };
+
+  this.preview = function (msg: string = this.query) {
+    const cmd = `${msg}`.split(':')[0].toLowerCase();
+    const val = `${msg}`.substr(cmd.length + 1);
+    const passives = this.passives as Record<string, (p: Param) => void>;
+    if (!passives[cmd]) return;
+    passives[cmd](new (Param as any)(val));
+  };
+
+  this.onKeyDown = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey) return;
+    (client[this.isActive ? 'commander' : 'cursor'] as ICursor & { write: (k: string) => void }).write(e.key);
+    e.stopPropagation();
+  };
+
+  this.onKeyUp = () => {
+    client.update();
+  };
+
+  this.toString = function () {
+    return `${this.query}`;
+  };
+
+  function clamp(v: number, min: number, max: number) {
+    return v < min ? min : v > max ? max : v;
+  }
+}

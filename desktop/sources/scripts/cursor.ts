@@ -1,0 +1,233 @@
+function Cursor(_client: IClient) {
+  this.x = 0;
+  this.y = 0;
+  this.w = 0;
+  this.h = 0;
+
+  this.minX = 0;
+  this.maxX = 0;
+  this.minY = 0;
+  this.maxY = 0;
+
+  this.ins = false;
+  this.mouseFrom = null as { x: number; y: number } | null;
+
+  this.start = () => {
+    document.onmousedown = this.onMouseDown;
+    document.onmouseup = this.onMouseUp;
+    document.onmousemove = this.onMouseMove;
+    document.oncopy = this.onCopy;
+    document.oncut = this.onCut;
+    document.onpaste = this.onPaste;
+    document.oncontextmenu = this.onContextMenu;
+  };
+
+  this.select = (x: number = this.x, y: number = this.y, w: number = this.w, h: number = this.h) => {
+    if (isNaN(x) || isNaN(y) || isNaN(w) || isNaN(h)) return;
+    const rect = {
+      x: clamp(parseInt(String(x)), 0, client.orca.w - 1),
+      y: clamp(parseInt(String(y)), 0, client.orca.h - 1),
+      w: clamp(parseInt(String(w)), -this.x, client.orca.w - 1),
+      h: clamp(parseInt(String(h)), -this.y, client.orca.h - 1),
+    };
+    if (this.x === rect.x && this.y === rect.y && this.w === rect.w && this.h === rect.h) return;
+    this.x = rect.x;
+    this.y = rect.y;
+    this.w = rect.w;
+    this.h = rect.h;
+    this.calculateBounds();
+    client.toggleGuide(false);
+    client.update();
+  };
+
+  this.selectAll = () => {
+    this.select(0, 0, client.orca.w, client.orca.h);
+    this.ins = false;
+  };
+
+  this.move = (x: number, y: number) => {
+    this.select(this.x + parseInt(String(x)), this.y - parseInt(String(y)));
+  };
+
+  this.moveTo = (x: number, y: number) => {
+    this.select(x, y);
+  };
+
+  this.scale = (w: number, h: number) => {
+    this.select(this.x, this.y, this.w + parseInt(String(w)), this.h - parseInt(String(h)));
+  };
+
+  this.scaleTo = (w: number, h: number) => {
+    this.select(this.x, this.y, w, h);
+  };
+
+  this.drag = (x: number, y: number) => {
+    if (isNaN(x) || isNaN(y)) return;
+    this.ins = false;
+    const block = this.selection();
+    this.erase();
+    this.move(x, y);
+    client.orca.writeBlock(this.minX, this.minY, block);
+    client.history.record(client.orca.s);
+  };
+
+  this.reset = (pos: boolean = false) => {
+    this.select(pos ? 0 : this.x, pos ? 0 : this.y, 0, 0);
+    this.ins = false;
+  };
+
+  this.read = () => client.orca.glyphAt(this.x, this.y);
+
+  this.write = (g: string) => {
+    if (!client.orca.isAllowed(g)) return;
+    if (client.orca.write(this.x, this.y, g) && this.ins) {
+      this.move(1, 0);
+    }
+    client.history.record(client.orca.s);
+  };
+
+  this.erase = () => {
+    for (let y = this.minY; y <= this.maxY; y++) {
+      for (let x = this.minX; x <= this.maxX; x++) {
+        client.orca.write(x, y, '.');
+      }
+    }
+    client.history.record(client.orca.s);
+  };
+
+  this.find = (str: string) => {
+    const i = client.orca.s.indexOf(str);
+    if (i < 0) return;
+    const pos = client.orca.posAt(i);
+    this.select(pos.x, pos.y, str.length - 1, 0);
+  };
+
+  this.inspect = () => {
+    if (this.w !== 0 || this.h !== 0) return 'multi';
+    const index = client.orca.indexAt(this.x, this.y);
+    const port = (client as IClient & { ports?: unknown[] }).ports?.[index];
+    if (port) return `${(port as [number, number, number, string])[3]}`;
+    if (client.orca.lockAt(this.x, this.y)) return 'locked';
+    return 'empty';
+  };
+
+  this.trigger = () => {
+    const operator = client.orca.operatorAt(this.x, this.y);
+    if (!operator) {
+      console.warn('Cursor', 'Nothing to trigger.');
+      return;
+    }
+    console.log('Cursor', 'Trigger: ' + operator.name);
+    operator.run(true);
+  };
+
+  this.comment = () => {
+    const block = this.selection();
+    const lines = block.trim().split(/\r?\n/);
+    const char = block.substr(0, 1) === '#' ? '.' : '#';
+    const res = lines.map((line) => `${char}${line.substr(1, line.length - 2)}${char}`).join('\n');
+    client.orca.writeBlock(this.minX, this.minY, res);
+    client.history.record(client.orca.s);
+  };
+
+  this.toUpperCase = () => {
+    const block = this.selection().toUpperCase();
+    client.orca.writeBlock(this.minX, this.minY, block);
+  };
+
+  this.toLowerCase = () => {
+    const block = this.selection().toLowerCase();
+    client.orca.writeBlock(this.minX, this.minY, block);
+  };
+
+  this.toRect = () => ({
+    x: this.minX,
+    y: this.minY,
+    w: this.maxX - this.minX + 1,
+    h: this.maxY - this.minY + 1,
+  });
+
+  this.calculateBounds = () => {
+    this.minX = this.x < this.x + this.w ? this.x : this.x + this.w;
+    this.minY = this.y < this.y + this.h ? this.y : this.y + this.h;
+    this.maxX = this.x > this.x + this.w ? this.x : this.x + this.w;
+    this.maxY = this.y > this.y + this.h ? this.y : this.y + this.h;
+  };
+
+  this.selected = (x: number, y: number, _w: number = 0, _h: number = 0) => {
+    return x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY;
+  };
+
+  this.selection = (rect = this.toRect()) => {
+    return client.orca.getBlock(rect.x, rect.y, rect.w, rect.h);
+  };
+
+  this.onMouseDown = (e: MouseEvent) => {
+    if (e.button !== 0) {
+      this.cut();
+      return;
+    }
+    const pos = this.mousePick(e.clientX, e.clientY);
+    this.select(pos.x, pos.y, 0, 0);
+    this.mouseFrom = pos;
+  };
+
+  this.onMouseMove = (e: MouseEvent) => {
+    if (!this.mouseFrom) return;
+    const pos = this.mousePick(e.clientX, e.clientY);
+    this.select(this.mouseFrom.x, this.mouseFrom.y, pos.x - this.mouseFrom.x, pos.y - this.mouseFrom.y);
+  };
+
+  this.onMouseUp = (e: MouseEvent) => {
+    if (this.mouseFrom) {
+      const pos = this.mousePick(e.clientX, e.clientY);
+      this.select(this.mouseFrom.x, this.mouseFrom.y, pos.x - this.mouseFrom.x, pos.y - this.mouseFrom.y);
+    }
+    this.mouseFrom = null;
+  };
+
+  this.mousePick = (x: number, y: number) => {
+    return {
+      x: parseInt(String((x - 30) / client.tile.w)),
+      y: parseInt(String((y - 30) / client.tile.h)),
+    };
+  };
+
+  this.onContextMenu = (e: Event) => {
+    e.preventDefault();
+  };
+
+  this.copy = function () {
+    document.execCommand('copy');
+  };
+
+  this.cut = function () {
+    document.execCommand('cut');
+  };
+
+  this.paste = function (overlap: boolean = false) {
+    document.execCommand('paste');
+  };
+
+  this.onCopy = (e: ClipboardEvent) => {
+    e.clipboardData!.setData('text/plain', this.selection());
+    e.preventDefault();
+  };
+
+  this.onCut = (e: ClipboardEvent) => {
+    this.onCopy(e);
+    this.erase();
+  };
+
+  this.onPaste = (e: ClipboardEvent) => {
+    const data = e.clipboardData!.getData('text/plain').trim();
+    client.orca.writeBlock(this.minX, this.minY, data, this.ins);
+    client.history.record(client.orca.s);
+    this.scaleTo(data.split(/\r?\n/)[0].length - 1, data.split(/\r?\n/).length - 1);
+    e.preventDefault();
+  };
+
+  function clamp(v: number, min: number, max: number) {
+    return v < min ? min : v > max ? max : v;
+  }
+}
