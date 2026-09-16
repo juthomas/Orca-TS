@@ -104,7 +104,8 @@ function Acels(this: IAcels, client: IClient) {
           label: 'Theme',
           submenu: [
             { label: 'Download Themes', click: () => electronAPI.openExternal('https://github.com/hundredrabbits/Themes') },
-            { label: 'Open Theme', click: () => client.theme.open() },
+            { label: 'Import Palette…', click: () => client.theme.open() },
+            { label: 'Export Palette…', click: () => client.theme.export() },
             { label: 'Reset Theme', accelerator: 'CmdOrCtrl+Escape', click: () => client.theme.reset() },
           ],
         },

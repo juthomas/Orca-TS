@@ -162,9 +162,9 @@ electron_1.ipcMain.handle('open-theme-file', async () => {
     if (!electronApp.win)
         return null;
     const result = await electron_1.dialog.showOpenDialog(electronApp.win, {
-        title: 'Open Theme',
+        title: 'Import Palette',
         filters: [
-            { name: 'Themes', extensions: ['svg', 'json'] },
+            { name: 'Palettes', extensions: ['json', 'svg'] },
             { name: 'All Files', extensions: ['*'] },
         ],
         properties: ['openFile'],
@@ -177,6 +177,28 @@ electron_1.ipcMain.handle('open-theme-file', async () => {
     catch (err) {
         console.warn('Cannot read theme file.', err);
         return null;
+    }
+});
+electron_1.ipcMain.handle('save-theme-file', async (_event, content) => {
+    if (!electronApp.win)
+        return false;
+    const result = await electron_1.dialog.showSaveDialog(electronApp.win, {
+        title: 'Export Palette',
+        defaultPath: 'orca-palette.json',
+        filters: [
+            { name: 'JSON Palette', extensions: ['json'] },
+            { name: 'All Files', extensions: ['*'] },
+        ],
+    });
+    if (result.canceled || !result.filePath)
+        return false;
+    try {
+        fs.writeFileSync(result.filePath, content, 'utf8');
+        return true;
+    }
+    catch (err) {
+        console.warn('Cannot write theme file.', err);
+        return false;
     }
 });
 const extensionsDir = path.join(electron_1.app.getPath('userData'), 'Extensions');

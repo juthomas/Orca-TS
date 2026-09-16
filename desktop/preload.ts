@@ -3,6 +3,7 @@ import { ipcRenderer } from 'electron';
 const electronAPI = {
   injectMenu: (menu: unknown) => ipcRenderer.invoke('inject-menu', menu),
   openThemeFile: () => ipcRenderer.invoke('open-theme-file') as Promise<string | null>,
+  saveThemeFile: (content: string) => ipcRenderer.invoke('save-theme-file', content) as Promise<boolean>,
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
   toggleVisible: () => ipcRenderer.invoke('toggle-visible'),
   toggleMenubar: () => ipcRenderer.invoke('toggle-menubar'),

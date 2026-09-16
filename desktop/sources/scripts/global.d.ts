@@ -94,6 +94,9 @@ interface ITheme {
   start(): void;
   open(): void;
   openViaInput(): void;
+  export(): void;
+  exportViaDownload(content: string): void;
+  serialize(): string;
   apply(theme: Record<string, string>): void;
   load(data: Record<string, string> | string): void;
   reset(): void;
@@ -314,6 +317,7 @@ interface ElectronMenuItem {
 interface ElectronAPI {
   injectMenu(menu: unknown): Promise<void>;
   openThemeFile?(): Promise<string | null>;
+  saveThemeFile?(content: string): Promise<boolean>;
   toggleFullscreen(): Promise<void>;
   toggleVisible(): Promise<void>;
   toggleMenubar(): Promise<void>;

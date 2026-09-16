@@ -37,8 +37,8 @@ function Theme(this: ITheme, _client: IClient) {
   };
 
   this.open = () => {
-    console.log('Theme', 'Open theme..');
-    const electronAPI = (window as Window & { electronAPI?: ElectronAPI & { openThemeFile?: () => Promise<string | null> } }).electronAPI;
+    console.log('Theme', 'Import palette..');
+    const electronAPI = (window as Window & { electronAPI?: ElectronAPI }).electronAPI;
     if (electronAPI?.openThemeFile) {
       electronAPI.openThemeFile().then((data) => {
         if (data) this.load(data);
@@ -46,6 +46,33 @@ function Theme(this: ITheme, _client: IClient) {
       return;
     }
     this.openViaInput();
+  };
+
+  this.serialize = () => {
+    const keys = ['background', 'f_high', 'f_med', 'f_low', 'f_inv', 'b_high', 'b_med', 'b_low', 'b_inv'];
+    const palette: Record<string, string> = {};
+    for (const key of keys) palette[key] = this.active[key];
+    return JSON.stringify(palette, null, 2);
+  };
+
+  this.export = () => {
+    console.log('Theme', 'Export palette..');
+    const content = this.serialize();
+    const electronAPI = (window as Window & { electronAPI?: ElectronAPI }).electronAPI;
+    if (electronAPI?.saveThemeFile) {
+      electronAPI.saveThemeFile(content).then((ok) => {
+        if (!ok) console.warn('Theme', 'Export cancelled or failed');
+      }).catch(() => this.exportViaDownload(content));
+      return;
+    }
+    this.exportViaDownload(content);
+  };
+
+  this.exportViaDownload = (content: string) => {
+    const link = document.createElement('a');
+    link.setAttribute('download', 'orca-palette.json');
+    link.setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(content));
+    link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
   };
 
   this.openViaInput = () => {
@@ -204,7 +231,8 @@ function Theme(this: ITheme, _client: IClient) {
   this.drop = (e: DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer?.files?.[0];
-    if (file?.name.indexOf('.svg') > -1) {
+    const name = file?.name.toLowerCase() ?? '';
+    if (file && (name.endsWith('.svg') || name.endsWith('.json'))) {
       this.readFile(file, (data) => this.load(data));
     }
     e.stopPropagation();

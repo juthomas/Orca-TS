@@ -4,6 +4,7 @@ const electron_1 = require("electron");
 const electronAPI = {
     injectMenu: (menu) => electron_1.ipcRenderer.invoke('inject-menu', menu),
     openThemeFile: () => electron_1.ipcRenderer.invoke('open-theme-file'),
+    saveThemeFile: (content) => electron_1.ipcRenderer.invoke('save-theme-file', content),
     toggleFullscreen: () => electron_1.ipcRenderer.invoke('toggle-fullscreen'),
     toggleVisible: () => electron_1.ipcRenderer.invoke('toggle-visible'),
     toggleMenubar: () => electron_1.ipcRenderer.invoke('toggle-menubar'),

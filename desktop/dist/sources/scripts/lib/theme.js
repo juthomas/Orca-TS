@@ -32,7 +32,7 @@ function Theme(_client) {
         this.load(this.default);
     };
     this.open = () => {
-        console.log('Theme', 'Open theme..');
+        console.log('Theme', 'Import palette..');
         const electronAPI = window.electronAPI;
         if (electronAPI?.openThemeFile) {
             electronAPI.openThemeFile().then((data) => {
@@ -42,6 +42,32 @@ function Theme(_client) {
             return;
         }
         this.openViaInput();
+    };
+    this.serialize = () => {
+        const keys = ['background', 'f_high', 'f_med', 'f_low', 'f_inv', 'b_high', 'b_med', 'b_low', 'b_inv'];
+        const palette = {};
+        for (const key of keys)
+            palette[key] = this.active[key];
+        return JSON.stringify(palette, null, 2);
+    };
+    this.export = () => {
+        console.log('Theme', 'Export palette..');
+        const content = this.serialize();
+        const electronAPI = window.electronAPI;
+        if (electronAPI?.saveThemeFile) {
+            electronAPI.saveThemeFile(content).then((ok) => {
+                if (!ok)
+                    console.warn('Theme', 'Export cancelled or failed');
+            }).catch(() => this.exportViaDownload(content));
+            return;
+        }
+        this.exportViaDownload(content);
+    };
+    this.exportViaDownload = (content) => {
+        const link = document.createElement('a');
+        link.setAttribute('download', 'orca-palette.json');
+        link.setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(content));
+        link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
     };
     this.openViaInput = () => {
         const input = document.createElement('input');
@@ -191,7 +217,8 @@ function Theme(_client) {
     this.drop = (e) => {
         e.preventDefault();
         const file = e.dataTransfer?.files?.[0];
-        if (file?.name.indexOf('.svg') > -1) {
+        const name = file?.name.toLowerCase() ?? '';
+        if (file && (name.endsWith('.svg') || name.endsWith('.json'))) {
             this.readFile(file, (data) => this.load(data));
         }
         e.stopPropagation();

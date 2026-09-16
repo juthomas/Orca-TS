@@ -61,7 +61,8 @@ function Client() {
         this.acels.set('Edit/Palette', 'Highlight', '', () => { this.theme.pick('b_high'); });
         this.acels.set('Edit/Palette', 'Operator', '', () => { this.theme.pick('b_med'); });
         this.acels.set('Edit/Palette', 'Soft', '', () => { this.theme.pick('b_low'); });
-        this.acels.set('Edit/Palette', 'Open Theme…', '', () => { this.theme.open(); });
+        this.acels.set('Edit/Palette', 'Import Palette…', '', () => { this.theme.open(); });
+        this.acels.set('Edit/Palette', 'Export Palette…', '', () => { this.theme.export(); });
         this.acels.set('Edit/Palette', 'Reset Palette', '', () => { this.theme.reset(); });
         this.theme.onLoad = () => { if (this.tile.hs)
             this.update(); };
