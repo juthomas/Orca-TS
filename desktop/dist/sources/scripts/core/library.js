@@ -32,7 +32,7 @@ library.c = function OperatorC(orca, x, y, passive) {
     this.name = 'clock';
     this.info = 'Outputs modulo of frame';
     this.ports.rate = { x: -1, y: 0, clamp: { min: 1 } };
-    this.ports.mod = { x: 1, y: 0 };
+    this.ports.mod = { x: 1, y: 0, default: '8' };
     this.ports.output = { x: 0, y: 1, sensitive: true, output: true };
     this.operation = function (force = false) {
         const rate = this.listen(this.ports.rate, true);
@@ -46,7 +46,7 @@ library.d = function OperatorD(orca, x, y, passive) {
     this.name = 'delay';
     this.info = 'Bangs on modulo of frame';
     this.ports.rate = { x: -1, y: 0, clamp: { min: 1 } };
-    this.ports.mod = { x: 1, y: 0, clamp: { min: 1 } };
+    this.ports.mod = { x: 1, y: 0, default: '8' };
     this.ports.output = { x: 0, y: 1, bang: true, output: true };
     this.operation = function (force = false) {
         const rate = this.listen(this.ports.rate, true);
@@ -113,14 +113,14 @@ library.i = function OperatorI(orca, x, y, passive) {
     Operator.call(this, orca, x, y, 'i', passive);
     this.name = 'increment';
     this.info = 'Increments southward operand';
-    this.ports.step = { x: -1, y: 0 };
+    this.ports.step = { x: -1, y: 0, default: '1' };
     this.ports.mod = { x: 1, y: 0 };
     this.ports.output = { x: 0, y: 1, sensitive: true, reader: true, output: true };
     this.operation = function (force = false) {
         const step = this.listen(this.ports.step, true);
         const mod = this.listen(this.ports.mod, true);
         const val = this.listen(this.ports.output, true);
-        return mod ? orca.keyOf((val + step) % mod) : '0';
+        return orca.keyOf((val + step) % (mod > 0 ? mod : 36));
     };
 };
 library.j = function OperatorJ(orca, x, y, passive) {
@@ -256,17 +256,14 @@ library.r = function OperatorR(orca, x, y, passive) {
     Operator.call(this, orca, x, y, 'r', passive);
     this.name = 'random';
     this.info = 'Outputs random value';
-    this.ports.a = { x: -1, y: 0 };
-    this.ports.b = { x: 1, y: 0 };
+    this.ports.min = { x: -1, y: 0 };
+    this.ports.max = { x: 1, y: 0 };
     this.ports.output = { x: 0, y: 1, sensitive: true, output: true };
     this.operation = function (force = false) {
-        const a = this.listen(this.ports.a, true);
-        const b = this.listen(this.ports.b, true);
-        if (a == b)
-            return orca.keyOf(a);
-        if (a > b)
-            return orca.keyOf(parseInt(Math.random() * (a - b + 1) + b));
-        return orca.keyOf(parseInt(Math.random() * (b - a + 1) + a));
+        const min = this.listen(this.ports.min, true);
+        const max = this.listen(this.ports.max, true);
+        const val = Math.floor((Math.random() * ((max > 0 ? max : 36) - min)) + min);
+        return orca.keyOf(val);
     };
 };
 library.s = function OperatorS(orca, x, y, passive) {
@@ -300,8 +297,8 @@ library.u = function OperatorU(orca, x, y, passive) {
     Operator.call(this, orca, x, y, 'u', passive);
     this.name = 'uclid';
     this.info = 'Bangs on Euclidean rhythm';
-    this.ports.step = { x: -1, y: 0, clamp: { min: 0 } };
-    this.ports.max = { x: 1, y: 0, clamp: { min: 1 } };
+    this.ports.step = { x: -1, y: 0, clamp: { min: 0 }, default: '1' };
+    this.ports.max = { x: 1, y: 0, clamp: { min: 1 }, default: '8' };
     this.ports.output = { x: 0, y: 1, bang: true, output: true };
     this.operation = function (force = false) {
         const step = this.listen(this.ports.step, true);
@@ -376,7 +373,7 @@ library.z = function OperatorZ(orca, x, y, passive) {
     Operator.call(this, orca, x, y, 'z', passive);
     this.name = 'lerp';
     this.info = 'Transitions operand to target';
-    this.ports.rate = { x: -1, y: 0 };
+    this.ports.rate = { x: -1, y: 0, default: '1' };
     this.ports.target = { x: 1, y: 0 };
     this.ports.output = { x: 0, y: 1, sensitive: true, reader: true, output: true };
     this.operation = function (force = false) {
