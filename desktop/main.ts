@@ -38,6 +38,14 @@ function createWindow(): void {
     },
   });
 
+  const ses = electronApp.win.webContents.session;
+  ses.setPermissionCheckHandler((_webContents, permission) => {
+    return permission === 'midi' || permission === 'midiSysex';
+  });
+  ses.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'midi' || permission === 'midiSysex');
+  });
+
   electronApp.win.loadURL(`file://${path.join(__dirname, 'sources', 'index.html')}`);
 
   electronApp.win.on('closed', () => {

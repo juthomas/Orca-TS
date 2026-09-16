@@ -214,12 +214,36 @@ function Midi(_client: IClient) {
     });
   };
 
-  this.access = (midiAccess: { outputs: Iterable<unknown>; inputs: Iterable<unknown> }) => {
-    this.outputs = Array.from(midiAccess.outputs);
-    this.selectOutput(0);
+  this.listPorts = function (iter: Iterator<{ value?: unknown; done?: boolean }>) {
+    const ports: unknown[] = [];
+    for (let i = iter.next(); i && !i.done; i = iter.next()) {
+      if (i.value) ports.push(i.value);
+    }
+    return ports;
+  };
 
-    this.inputs = Array.from(midiAccess.inputs);
+  this.access = (midiAccess: {
+    outputs: { values: () => Iterator<{ value?: unknown; done?: boolean }> };
+    inputs: { values: () => Iterator<{ value?: unknown; done?: boolean }> };
+    onstatechange: (() => void) | null;
+  }) => {
+    this.outputs = this.listPorts(midiAccess.outputs.values());
+    this.selectOutput(this.outputs.length ? 0 : -1);
+
+    this.inputs = this.listPorts(midiAccess.inputs.values());
     this.selectInput(-1);
+
+    midiAccess.onstatechange = () => {
+      const prevOut = (this.outputDevice() as { id?: string } | undefined)?.id;
+      const prevIn = (this.inputDevice() as { id?: string } | undefined)?.id;
+      this.outputs = this.listPorts(midiAccess.outputs.values());
+      this.inputs = this.listPorts(midiAccess.inputs.values());
+      const outId = this.outputs.findIndex((d) => (d as { id?: string }).id === prevOut);
+      const inId = this.inputs.findIndex((d) => (d as { id?: string }).id === prevIn);
+      this.selectOutput(outId >= 0 ? outId : this.outputs.length ? 0 : -1);
+      this.selectInput(inId >= 0 ? inId : -1);
+      client.update();
+    };
   };
 
   this.transpose = function (
