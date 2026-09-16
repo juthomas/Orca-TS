@@ -9,7 +9,8 @@ This fork keeps the same behaviour and UI, with:
 - **TypeScript** for main process, preload and renderer scripts  
 - **pnpm** as package manager  
 - **Electron 35.x** (security updates)  
-- Same operators, commands and workflow as the original
+- Same operators, commands and workflow as the original  
+- **Custom operators (extensions)** — add your own glyphs via JS files in the Extensions folder; see [desktop/EXTENSIONS.md](desktop/EXTENSIONS.md)
 
 ---
 

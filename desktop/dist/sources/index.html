@@ -6,6 +6,7 @@
     <script type="text/javascript" src="scripts/core/operator.js"></script>
     <script type="text/javascript" src="scripts/core/orca.js"></script>
     <script type="text/javascript" src="scripts/core/library.js"></script>
+    <script type="text/javascript" src="scripts/extension-api.js"></script>
     <script type="text/javascript" src="scripts/core/io/cc.js"></script>
     <script type="text/javascript" src="scripts/core/io/midi.js"></script>
     <script type="text/javascript" src="scripts/core/io/mono.js"></script>
@@ -31,8 +32,7 @@
       client.install(document.body)
 
       window.addEventListener('load', () => { 
-        client.start()
-        client.acels.inject('Orca Ts')
+        client.start().then(() => client.acels.inject('Orca Ts'))
       })
     </script>
   </body>

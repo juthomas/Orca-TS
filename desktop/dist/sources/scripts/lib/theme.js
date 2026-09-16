@@ -33,22 +33,30 @@ function Theme(_client) {
     };
     this.open = () => {
         console.log('Theme', 'Open theme..');
+        const electronAPI = window.electronAPI;
+        if (electronAPI?.openThemeFile) {
+            electronAPI.openThemeFile().then((data) => {
+                if (data)
+                    this.load(data);
+            }).catch(() => this.openViaInput());
+            return;
+        }
+        this.openViaInput();
+    };
+    this.openViaInput = () => {
         const input = document.createElement('input');
         input.type = 'file';
+        input.accept = '.svg,.json,text/plain,application/json,image/svg+xml';
         input.onchange = (e) => {
             const file = e.target.files?.[0];
             if (file)
                 this.readFile(file, (data) => this.load(data));
         };
+        document.body.appendChild(input);
         input.click();
+        input.remove();
     };
-    this.load = (data) => {
-        const theme = this.parse(data);
-        if (!theme || !isValid(theme)) {
-            console.warn('Theme', 'Invalid format');
-            return;
-        }
-        console.log('Theme', 'Loaded theme!');
+    this.apply = (theme) => {
         this.el.innerHTML = `:root { 
       --background: ${theme.background}; 
       --f_high: ${theme.f_high}; 
@@ -62,8 +70,17 @@ function Theme(_client) {
     }`;
         localStorage.setItem('theme', JSON.stringify(theme));
         this.active = theme;
+    };
+    this.load = (data) => {
+        const theme = this.parse(data);
+        if (!theme || !isValid(theme)) {
+            console.warn('Theme', 'Invalid format');
+            return;
+        }
+        console.log('Theme', 'Loaded theme!');
+        this.apply(theme);
         if (this.onLoad)
-            this.onLoad(data);
+            this.onLoad(theme);
     };
     this.reset = () => {
         this.load(this.default);
@@ -77,6 +94,81 @@ function Theme(_client) {
             return;
         }
         this.active[key] = hex;
+        this.apply({ ...this.active });
+        if (this.onLoad)
+            this.onLoad(this.active);
+    };
+    this.pick = (key) => {
+        if (!this.active[key]) {
+            console.warn('Theme', `Unknown key: ${key}`);
+            return;
+        }
+        const existing = document.getElementById('orca-theme-picker');
+        if (existing)
+            existing.remove();
+        const labels = {
+            background: 'Background',
+            f_high: 'Text bright',
+            f_med: 'Text medium',
+            f_low: 'Text dim',
+            f_inv: 'Text inverted',
+            b_inv: 'Accent / selection',
+            b_high: 'Highlight',
+            b_med: 'Operator',
+            b_low: 'Soft',
+        };
+        const panel = document.createElement('div');
+        panel.id = 'orca-theme-picker';
+        panel.style.cssText = [
+            'position:fixed',
+            'top:36px',
+            'right:36px',
+            'z-index:99999',
+            'display:flex',
+            'align-items:center',
+            'gap:10px',
+            'padding:10px 12px',
+            'background:#1a1a1a',
+            'color:#eee',
+            'border:1px solid #444',
+            'font:12px input_mono_medium,monospace',
+            '-webkit-app-region:no-drag',
+        ].join(';');
+        const title = document.createElement('span');
+        title.textContent = labels[key] || key;
+        const color = document.createElement('input');
+        color.type = 'color';
+        color.value = toPickerHex(this.active[key]);
+        color.style.cssText = 'width:42px;height:28px;padding:0;border:0;background:transparent;cursor:pointer';
+        const hex = document.createElement('input');
+        hex.type = 'text';
+        hex.value = toPickerHex(this.active[key]);
+        hex.maxLength = 7;
+        hex.style.cssText = 'width:78px;padding:4px 6px;border:1px solid #555;background:#111;color:#eee;font:inherit';
+        const done = document.createElement('button');
+        done.textContent = 'Done';
+        done.style.cssText = 'padding:4px 8px;border:1px solid #555;background:#333;color:#eee;font:inherit;cursor:pointer';
+        done.onclick = () => panel.remove();
+        const applyValue = (value) => {
+            this.set(key, value);
+            color.value = toPickerHex(this.active[key]);
+            hex.value = toPickerHex(this.active[key]);
+        };
+        color.oninput = () => applyValue(color.value);
+        hex.onchange = () => applyValue(hex.value);
+        hex.onkeydown = (e) => {
+            if (e.key === 'Enter')
+                applyValue(hex.value);
+            if (e.key === 'Escape')
+                panel.remove();
+        };
+        panel.appendChild(title);
+        panel.appendChild(color);
+        panel.appendChild(hex);
+        panel.appendChild(done);
+        document.body.appendChild(panel);
+        hex.focus();
+        hex.select();
     };
     this.read = (key) => {
         return this.active[key];
@@ -143,6 +235,14 @@ function Theme(_client) {
     }
     function isColor(hex) {
         return /^#([0-9A-F]{3}){1,2}$/i.test(hex);
+    }
+    function toPickerHex(hex) {
+        if (/^#[0-9A-Fa-f]{6}$/.test(hex))
+            return hex;
+        if (/^#[0-9A-Fa-f]{3}$/.test(hex)) {
+            return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+        }
+        return '#000000';
     }
     function isJson(text) {
         try {

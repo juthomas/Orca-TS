@@ -55,6 +55,20 @@ function Client() {
     this.acels.set('Edit', 'Drag South(Leap)', 'CmdOrCtrl+Alt+ArrowDown', () => { this.cursor.drag(0, -this.grid.h) })
     this.acels.set('Edit', 'Drag West(Leap)', 'CmdOrCtrl+Alt+ArrowLeft', () => { this.cursor.drag(-this.grid.w, 0) })
 
+    this.acels.set('Edit/Palette', 'Background', '', () => { this.theme.pick('background') })
+    this.acels.set('Edit/Palette', 'Text bright', '', () => { this.theme.pick('f_high') })
+    this.acels.set('Edit/Palette', 'Text medium', '', () => { this.theme.pick('f_med') })
+    this.acels.set('Edit/Palette', 'Text dim', '', () => { this.theme.pick('f_low') })
+    this.acels.set('Edit/Palette', 'Text inverted', '', () => { this.theme.pick('f_inv') })
+    this.acels.set('Edit/Palette', 'Accent / selection', '', () => { this.theme.pick('b_inv') })
+    this.acels.set('Edit/Palette', 'Highlight', '', () => { this.theme.pick('b_high') })
+    this.acels.set('Edit/Palette', 'Operator', '', () => { this.theme.pick('b_med') })
+    this.acels.set('Edit/Palette', 'Soft', '', () => { this.theme.pick('b_low') })
+    this.acels.set('Edit/Palette', 'Open Theme…', '', () => { this.theme.open() })
+    this.acels.set('Edit/Palette', 'Reset Palette', '', () => { this.theme.reset() })
+
+    this.theme.onLoad = () => { if (this.tile.hs) this.update() }
+
     this.acels.set('Project', 'Find', 'CmdOrCtrl+J', () => { this.commander.start('find:') })
     this.acels.set('Project', 'Inject', 'CmdOrCtrl+B', () => { this.commander.start('inject:') })
     this.acels.set('Project', 'Toggle Commander', 'CmdOrCtrl+K', () => { this.commander.start() })
@@ -91,6 +105,7 @@ function Client() {
     this.acels.set('Clock', 'Decr. Speed(10x)', 'CmdOrCtrl+<', () => { this.clock.modSpeed(-10, true) })
 
     this.acels.set('View', 'Toggle Retina', 'Tab', () => { this.toggleRetina() })
+    this.acels.set('View', 'Toggle Menubar', 'CmdOrCtrl+Shift+E', () => { (window as any).electronAPI?.toggleMenubar?.() })
     this.acels.set('View', 'Toggle Guide', 'CmdOrCtrl+G', () => { this.toggleGuide() })
     this.acels.set('View', 'Incr. Col', ']', () => { this.modGrid(1, 0) })
     this.acels.set('View', 'Decr. Col', '[', () => { this.modGrid(-1, 0) })
@@ -112,9 +127,41 @@ function Client() {
     ;(this.acels as any).pipe(this.commander)
   }
 
-  this.start = () => {
+  this.loadExtensions = (extPath: string) => {
+    try {
+      const fs = require('fs')
+      const path = require('path')
+      if (!fs.existsSync(extPath)) return
+      const OrcaTs = (globalThis as any).OrcaTs
+      if (!OrcaTs) return
+      const files = fs.readdirSync(extPath).filter((f: string) => f.endsWith('.js')).sort()
+      for (const f of files) {
+        try {
+          const code = fs.readFileSync(path.join(extPath, f), 'utf8')
+          ;(function (lib: typeof library, Op: typeof Operator, OT: typeof OrcaTs) {
+            eval(code)
+          })(library, (globalThis as any).Operator, OrcaTs)
+          console.info('Extensions', 'Loaded ' + f)
+        } catch (e) {
+          console.warn('Extensions', f, e)
+        }
+      }
+    } catch (e) {
+      console.warn('Extensions', e)
+    }
+  }
+
+  this.start = async () => {
+    const electronAPI = (window as any).electronAPI
+    if (electronAPI?.getExtensionsPath) {
+      try {
+        const extPath = await electronAPI.getExtensionsPath()
+        this.loadExtensions(extPath)
+      } catch (_) {}
+    }
     console.info('Client', 'Starting..')
     console.info(`${this.acels}`)
+    await document.fonts.load('12px "Glyphs As Simt"')
     this.theme.start()
     this.io.start()
     this.history.bind(this.orca, 's')
@@ -152,6 +199,7 @@ function Client() {
     this.clear()
     this.ports = this.findPorts()
     this.drawProgram()
+    this.setDrawFont('input_mono_medium')
     this.drawInterface()
     this.drawGuide()
   }
@@ -289,7 +337,7 @@ function Client() {
         // Get glyph
         const glyph = g !== '.' ? g : this.isCursor(x, y) ? (this.clock.isPaused ? '~' : '@') : this.isMarker(x, y) ? '+' : g
         // Make Style
-        this.drawSprite(x, y, glyph, this.makeStyle(x, y, glyph, selection))
+        this.drawSprite(x, y, glyph, this.makeStyle(x, y, glyph, selection), g !== '.')
       }
     }
   }
@@ -340,13 +388,21 @@ function Client() {
     }
   }
 
-  this.drawSprite = (x, y, g, type) => {
+  this.setDrawFont = (family) => {
+    const font = `${this.tile.hs * 0.75}px ${family}`
+    if (this._drawFont === font) { return }
+    this._drawFont = font
+    this.context.font = font
+  }
+
+  this.drawSprite = (x, y, g, type, glyphFont = false) => {
     const theme = this.makeTheme(type)
     if (theme.bg) {
       this.context.fillStyle = theme.bg
       this.context.fillRect(x * this.tile.ws, (y) * this.tile.hs, this.tile.ws, this.tile.hs)
     }
     if (theme.fg) {
+      this.setDrawFont(glyphFont ? '"Glyphs As Simt"' : 'input_mono_medium')
       this.context.fillStyle = theme.fg
       this.context.fillText(g, (x + 0.5) * this.tile.ws, (y + 1) * this.tile.hs)
     }
@@ -390,7 +446,7 @@ function Client() {
 
     this.context.textBaseline = 'bottom'
     this.context.textAlign = 'center'
-    this.context.font = `${this.tile.hs * 0.75}px input_mono_medium`
+    this._drawFont = ''
     this.update()
   }
 

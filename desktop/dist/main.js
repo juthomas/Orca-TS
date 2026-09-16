@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
 let isShown = true;
 const electronApp = electron_1.app;
 function createWindow() {
@@ -46,9 +47,9 @@ function createWindow() {
         backgroundColor: '#000',
         icon: path.join(__dirname, { darwin: 'icon.icns', linux: 'icon.png', win32: 'icon.ico' }[process.platform] || 'icon.ico'),
         resizable: true,
-        frame: process.platform !== 'darwin',
+        frame: true,
         skipTaskbar: process.platform === 'darwin',
-        autoHideMenuBar: process.platform === 'darwin',
+        autoHideMenuBar: false,
         webPreferences: {
             zoomFactor: 1.0,
             nodeIntegration: true,
@@ -120,15 +121,76 @@ electronApp.injectMenu = function (menu) {
         electron_1.Menu.setApplicationMenu(electron_1.Menu.buildFromTemplate(menu));
     }
     catch (err) {
-        console.warn('Cannot inject menu.');
+        console.warn('Cannot inject menu.', err);
     }
 };
+function attachMenuClicks(items, sender) {
+    return items.map((item) => {
+        const out = {};
+        if (item.label !== undefined)
+            out.label = item.label;
+        if (item.role !== undefined)
+            out.role = item.role;
+        if (item.accelerator !== undefined)
+            out.accelerator = item.accelerator;
+        if (item.type !== undefined)
+            out.type = item.type;
+        if (item.clickId) {
+            const clickId = item.clickId;
+            out.click = () => {
+                // Invoke renderer handlers directly — more reliable than ipc send for menu actions.
+                const code = `void(window.__orcaMenuHandlers&&window.__orcaMenuHandlers[${JSON.stringify(clickId)}]&&window.__orcaMenuHandlers[${JSON.stringify(clickId)}]())`;
+                sender.executeJavaScript(code).catch(() => { });
+            };
+        }
+        if (item.submenu) {
+            out.submenu = attachMenuClicks(item.submenu, sender);
+        }
+        return out;
+    });
+}
 // IPC for renderer (replaces deprecated remote)
-electron_1.ipcMain.handle('inject-menu', (_event, menu) => {
-    electronApp.injectMenu?.(menu);
+electron_1.ipcMain.handle('inject-menu', (event, menu) => {
+    electronApp.injectMenu?.(attachMenuClicks(menu, event.sender));
 });
 electron_1.ipcMain.handle('toggle-fullscreen', () => electronApp.toggleFullscreen?.());
 electron_1.ipcMain.handle('toggle-visible', () => electronApp.toggleVisible?.());
 electron_1.ipcMain.handle('toggle-menubar', () => electronApp.toggleMenubar?.());
 electron_1.ipcMain.handle('inspect', () => electronApp.inspect?.());
 electron_1.ipcMain.handle('open-external', (_event, url) => electron_1.shell.openExternal(url));
+electron_1.ipcMain.handle('open-theme-file', async () => {
+    if (!electronApp.win)
+        return null;
+    const result = await electron_1.dialog.showOpenDialog(electronApp.win, {
+        title: 'Open Theme',
+        filters: [
+            { name: 'Themes', extensions: ['svg', 'json'] },
+            { name: 'All Files', extensions: ['*'] },
+        ],
+        properties: ['openFile'],
+    });
+    if (result.canceled || !result.filePaths[0])
+        return null;
+    try {
+        return fs.readFileSync(result.filePaths[0], 'utf8');
+    }
+    catch (err) {
+        console.warn('Cannot read theme file.', err);
+        return null;
+    }
+});
+const extensionsDir = path.join(electron_1.app.getPath('userData'), 'Extensions');
+electron_1.ipcMain.handle('get-extensions-path', () => {
+    const fs = require('fs');
+    if (!fs.existsSync(extensionsDir))
+        fs.mkdirSync(extensionsDir, { recursive: true });
+    return extensionsDir;
+});
+electron_1.ipcMain.handle('open-extensions-folder', () => {
+    const fs = require('fs');
+    const { exec } = require('child_process');
+    if (!fs.existsSync(extensionsDir))
+        fs.mkdirSync(extensionsDir, { recursive: true });
+    const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open';
+    exec(`${cmd} "${extensionsDir.replace(/"/g, '\\"')}"`);
+});

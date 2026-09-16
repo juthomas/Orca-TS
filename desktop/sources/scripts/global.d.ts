@@ -93,9 +93,12 @@ interface ITheme {
   install(host?: HTMLElement): void;
   start(): void;
   open(): void;
+  openViaInput(): void;
+  apply(theme: Record<string, string>): void;
   load(data: Record<string, string> | string): void;
   reset(): void;
   set(key: string, val: string): void;
+  pick(key: string): void;
   read(key: string): string;
   readFile(file: File, callback: (data: string) => void): void;
   parse(any: unknown): Record<string, string> | undefined;
@@ -302,18 +305,22 @@ interface ElectronMenuItem {
   label?: string;
   submenu?: ElectronMenuItem[];
   click?: () => void;
+  clickId?: string;
   role?: string;
   accelerator?: string;
   type?: string;
 }
 
 interface ElectronAPI {
-  injectMenu(menu: ElectronMenuItem[]): Promise<void>;
+  injectMenu(menu: unknown): Promise<void>;
+  openThemeFile?(): Promise<string | null>;
   toggleFullscreen(): Promise<void>;
   toggleVisible(): Promise<void>;
   toggleMenubar(): Promise<void>;
   inspect(): Promise<void>;
   openExternal(url: string): Promise<void>;
+  getExtensionsPath?(): Promise<string>;
+  openExtensionsFolder?(): Promise<void>;
 }
 
 declare global {

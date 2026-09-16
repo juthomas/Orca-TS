@@ -9,7 +9,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc && tsc -p tsconfig.renderer.json && pnpm run copy-assets",
-    "copy-assets": "mkdir -p dist/sources/links && cp sources/index.html dist/sources/ && cp -r sources/links/* dist/sources/links/",
+    "copy-assets": "mkdir -p dist/sources/links dist/sources/media/fonts && cp sources/index.html dist/sources/ && cp -r sources/links/* dist/sources/links/ && cp sources/media/fonts/* dist/sources/media/fonts/",
     "start": "pnpm run build && electron . --disable-gpu",
     "dev": "pnpm run build && electron . --disable-gpu",
     "time": "node time.js",

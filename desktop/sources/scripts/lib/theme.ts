@@ -38,22 +38,30 @@ function Theme(this: ITheme, _client: IClient) {
 
   this.open = () => {
     console.log('Theme', 'Open theme..');
+    const electronAPI = (window as Window & { electronAPI?: ElectronAPI & { openThemeFile?: () => Promise<string | null> } }).electronAPI;
+    if (electronAPI?.openThemeFile) {
+      electronAPI.openThemeFile().then((data) => {
+        if (data) this.load(data);
+      }).catch(() => this.openViaInput());
+      return;
+    }
+    this.openViaInput();
+  };
+
+  this.openViaInput = () => {
     const input = document.createElement('input');
     input.type = 'file';
+    input.accept = '.svg,.json,text/plain,application/json,image/svg+xml';
     input.onchange = (e: Event) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) this.readFile(file, (data) => this.load(data));
     };
+    document.body.appendChild(input);
     input.click();
+    input.remove();
   };
 
-  this.load = (data: Record<string, string> | string) => {
-    const theme = this.parse(data);
-    if (!theme || !isValid(theme)) {
-      console.warn('Theme', 'Invalid format');
-      return;
-    }
-    console.log('Theme', 'Loaded theme!');
+  this.apply = (theme: Record<string, string>) => {
     this.el.innerHTML = `:root { 
       --background: ${theme.background}; 
       --f_high: ${theme.f_high}; 
@@ -67,7 +75,17 @@ function Theme(this: ITheme, _client: IClient) {
     }`;
     localStorage.setItem('theme', JSON.stringify(theme));
     this.active = theme;
-    if (this.onLoad) this.onLoad(data as Record<string, string>);
+  };
+
+  this.load = (data: Record<string, string> | string) => {
+    const theme = this.parse(data);
+    if (!theme || !isValid(theme)) {
+      console.warn('Theme', 'Invalid format');
+      return;
+    }
+    console.log('Theme', 'Loaded theme!');
+    this.apply(theme);
+    if (this.onLoad) this.onLoad(theme);
   };
 
   this.reset = () => {
@@ -82,6 +100,88 @@ function Theme(this: ITheme, _client: IClient) {
       return;
     }
     this.active[key] = hex;
+    this.apply({ ...this.active });
+    if (this.onLoad) this.onLoad(this.active);
+  };
+
+  this.pick = (key: string) => {
+    if (!this.active[key]) {
+      console.warn('Theme', `Unknown key: ${key}`);
+      return;
+    }
+
+    const existing = document.getElementById('orca-theme-picker');
+    if (existing) existing.remove();
+
+    const labels: Record<string, string> = {
+      background: 'Background',
+      f_high: 'Text bright',
+      f_med: 'Text medium',
+      f_low: 'Text dim',
+      f_inv: 'Text inverted',
+      b_inv: 'Accent / selection',
+      b_high: 'Highlight',
+      b_med: 'Operator',
+      b_low: 'Soft',
+    };
+
+    const panel = document.createElement('div');
+    panel.id = 'orca-theme-picker';
+    panel.style.cssText = [
+      'position:fixed',
+      'top:36px',
+      'right:36px',
+      'z-index:99999',
+      'display:flex',
+      'align-items:center',
+      'gap:10px',
+      'padding:10px 12px',
+      'background:#1a1a1a',
+      'color:#eee',
+      'border:1px solid #444',
+      'font:12px input_mono_medium,monospace',
+      '-webkit-app-region:no-drag',
+    ].join(';');
+
+    const title = document.createElement('span');
+    title.textContent = labels[key] || key;
+
+    const color = document.createElement('input');
+    color.type = 'color';
+    color.value = toPickerHex(this.active[key]);
+    color.style.cssText = 'width:42px;height:28px;padding:0;border:0;background:transparent;cursor:pointer';
+
+    const hex = document.createElement('input');
+    hex.type = 'text';
+    hex.value = toPickerHex(this.active[key]);
+    hex.maxLength = 7;
+    hex.style.cssText = 'width:78px;padding:4px 6px;border:1px solid #555;background:#111;color:#eee;font:inherit';
+
+    const done = document.createElement('button');
+    done.textContent = 'Done';
+    done.style.cssText = 'padding:4px 8px;border:1px solid #555;background:#333;color:#eee;font:inherit;cursor:pointer';
+    done.onclick = () => panel.remove();
+
+    const applyValue = (value: string) => {
+      this.set(key, value);
+      color.value = toPickerHex(this.active[key]);
+      hex.value = toPickerHex(this.active[key]);
+    };
+
+    color.oninput = () => applyValue(color.value);
+    hex.onchange = () => applyValue(hex.value);
+    hex.onkeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') applyValue(hex.value);
+      if (e.key === 'Escape') panel.remove();
+    };
+
+    panel.appendChild(title);
+    panel.appendChild(color);
+    panel.appendChild(hex);
+    panel.appendChild(done);
+    document.body.appendChild(panel);
+    hex.focus();
+    hex.select();
   };
 
   this.read = (key: string) => {
@@ -149,6 +249,14 @@ function Theme(this: ITheme, _client: IClient) {
 
   function isColor(hex: string): boolean {
     return /^#([0-9A-F]{3}){1,2}$/i.test(hex);
+  }
+
+  function toPickerHex(hex: string): string {
+    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex;
+    if (/^#[0-9A-Fa-f]{3}$/.test(hex)) {
+      return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+    }
+    return '#000000';
   }
 
   function isJson(text: string): boolean {
